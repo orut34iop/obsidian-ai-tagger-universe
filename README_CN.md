@@ -204,15 +204,6 @@
 
 这些改进使标签生成更可靠、格式更一致，并提高了与各种 LLM 提供商（包括 Claude、GPT-4 和本地模型）的兼容性。
 
-## ☕ 赞助支持
-
-如果您觉得这个插件有帮助，欢迎请我喝杯咖啡！
-
-<p align="center">
-  <img src="assets/wechat-pay.jpg" alt="微信支付" width="200" />
-  <img src="assets/alipay.jpg" alt="支付宝" width="200" />
-</p>
-
 ## 📝 许可证
 
 MIT License - 详见 [LICENSE](LICENSE) 文件
@@ -220,11 +211,3 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 ## 🤝 贡献
 
 欢迎贡献！请随时提交 Issue 或 Pull Request。
-
-## 📮 支持
-
-如果遇到问题或有功能请求，请在 [GitHub Issues](https://github.com/niehu-szkt/obsidian-ai-tagger-universe/issues) 中提交。
-
-## 🙏 致谢
-
-感谢所有为本项目做出贡献的开发者和用户！

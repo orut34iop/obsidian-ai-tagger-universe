@@ -225,15 +225,6 @@ This fork includes several enhancements over the original plugin:
 
 These improvements result in more reliable tag generation, better formatting consistency, and improved compatibility with various LLM providers including Claude, GPT-4, and local models.
 
-## ☕ Support
-
-If you find this plugin helpful, consider buying me a coffee!
-
-<p align="center">
-  <img src="assets/wechat-pay.jpg" alt="WeChat Pay" width="200" />
-  <img src="assets/alipay.jpg" alt="Alipay" width="200" />
-</p>
-
 ## 📝 License
 
 MIT License - see the [LICENSE](LICENSE) file for details
@@ -241,11 +232,3 @@ MIT License - see the [LICENSE](LICENSE) file for details
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit Issues or Pull Requests.
-
-## 📮 Support
-
-If you encounter any issues or have feature requests, please submit them on [GitHub Issues](https://github.com/niehu-szkt/obsidian-ai-tagger-universe/issues).
-
-## 🙏 Acknowledgments
-
-Thanks to all the developers and users who have contributed to this project!
