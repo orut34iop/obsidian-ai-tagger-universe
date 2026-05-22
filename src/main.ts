@@ -383,6 +383,42 @@ export default class AITaggerPlugin extends Plugin {
     }
 
     /**
+     * Enforces the Atlas namespace convention on a list of tags.
+     * Every tag must have one of these prefixes:
+     *   resources/, type/, status/, keyword/
+     *
+     * - Drops bare-word tags (no prefix).
+     * - Caps per-namespace: resources ≤ 2, type = 1, status = 1, keyword ≤ 5.
+     * - Total ≤ 9.
+     */
+    private applyAtlasNamespaceFilter(tags: string[]): string[] {
+        const PREFIXES = ['resources/', 'type/', 'status/', 'keyword/'];
+        const CAPS: Record<string, number> = {
+            'resources/': 2,
+            'type/':      1,
+            'status/':    1,
+            'keyword/':   5,
+        };
+        const MAX_TOTAL = 9;
+
+        const groups: Record<string, string[]> = { 'resources/': [], 'type/': [], 'status/': [], 'keyword/': [] };
+        for (const tag of tags) {
+            const prefix = PREFIXES.find(p => tag.toLowerCase().startsWith(p));
+            if (prefix) groups[prefix].push(tag);
+        }
+
+        // Cap each namespace group and flatten in the canonical order.
+        const ordered: string[] = [];
+        for (const prefix of PREFIXES) {
+            const group = groups[prefix];
+            const cap = CAPS[prefix];
+            ordered.push(...group.slice(0, cap));
+        }
+
+        return ordered.slice(0, MAX_TOTAL);
+    }
+
+    /**
      * Analyzes and tags the currently open note
      * @returns Promise that resolves when the operation completes
      */
@@ -582,6 +618,11 @@ export default class AITaggerPlugin extends Plugin {
                 const blocked = new Set(excluded.map(normalize));
                 allTags = allTags.filter(t => !blocked.has(normalize(t)));
             }
+
+            // Atlas namespace post-filter: ensure all tags follow the
+            // resources/type/status/keyword convention, cap per-namespace
+            // counts, and drop any bare words.
+            allTags = this.applyAtlasNamespaceFilter(allTags);
 
             if (this.settings.debugMode) {
                 //console.log(`[AI Tagger Debug] Tags before updateNoteTags:`, allTags);

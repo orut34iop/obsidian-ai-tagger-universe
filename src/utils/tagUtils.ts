@@ -604,16 +604,32 @@ export class TagUtils {
                 content = content.slice(frontmatterMatch[0].length);
             }
 
-            // Accept either bare-word lines (one tag per line, as written by
-            // saveAllTags) or markdown list items ("- tag"). Skip headings,
-            // code fences, and stray frontmatter delimiters.
-            return content
-                .split('\n')
-                .map(line => line.trim())
-                .filter(line => line && !line.startsWith('#') && !line.startsWith('```') && line !== '---')
-                .map(line => line.startsWith('- ') ? line.slice(2).trim() : line)
-                .filter(Boolean)
-                .map(tag => this.formatTag(tag, format));
+            // Parse tags. Accept three formats:
+            //   1. Markdown table rows: "| keywords | tag-name |" → extract LAST column
+            //   2. Markdown list items: "- tag-name" → extract after "- "
+            //   3. Bare-word lines: "tag-name" → use line as-is
+            // Skip headings, code fences, stray frontmatter delimiters, and
+            // table header/separator rows.
+            const result: string[] = [];
+            for (const raw of content.split('\n')) {
+                const line = raw.trim();
+                if (!line) continue;
+                if (line.startsWith('#') || line.startsWith('```') || line === '---') continue;
+
+                if (line.startsWith('|') && line.endsWith('|')) {
+                    // Markdown table row — extract tags from the last column.
+                    const cols = line.split('|').map(c => c.trim()).filter(Boolean);
+                    // Skip header separator rows (|---|:---| etc.)
+                    if (cols.length >= 2 && !cols.every(c => /^:?-+:?$/.test(c))) {
+                        const tag = cols[cols.length - 1];
+                        if (tag && !tag.startsWith('#')) result.push(tag);
+                    }
+                } else {
+                    const tag = line.startsWith('- ') ? line.slice(2).trim() : line;
+                    if (tag) result.push(tag);
+                }
+            }
+            return result.map(tag => this.formatTag(tag, format)).filter(Boolean);
         } catch (error) {
             //console.error('Error reading tags file:', error);
             return null;

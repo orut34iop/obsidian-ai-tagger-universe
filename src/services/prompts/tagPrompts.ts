@@ -43,6 +43,35 @@ function validateCustomPrompt(prompt: string): string | null {
 }
 
 /**
+ * Tag namespace rules for Atlas knowledge-base format.
+ * Injected into prompts so the LLM emits tags that follow the
+ * resources/type/status/keyword  namespace convention.
+ */
+const ATLAS_NAMESPACE_RULES = `
+<atlas_tag_namespace_rules>
+Every tag MUST have one of these namespace prefixes:
+
+  resources/<area>  — knowledge domain (1-2 required): e.g. resources/ai, resources/quant, resources/dev
+  type/<kind>       — content form (1 required): e.g. type/article, type/tutorial, type/video, type/code
+  status/<state>    — processing state (1 required): e.g. status/unread, status/organized, status/todo
+  keyword/<term>    — specific concept (0-5, optional): e.g. keyword/machineLearning, keyword/回测
+
+REQUIREMENTS:
+- NEVER output a tag WITHOUT a namespace prefix
+- Generate EXACTLY 1 type/ tag (e.g. type/article)
+- Generate EXACTLY 1 status/ tag (default: status/unread)
+- Generate 1-2 resources/ tags
+- Generate 0-5 keyword/ tags
+- Total tags: 3-9 maximum
+- Use kebab-case for English tag values (e.g. machine-learning, not machine_learning)
+- Chinese concepts keep Chinese characters (e.g. keyword/回测, keyword/网格交易)
+- DO NOT include the # symbol
+- DO NOT prefix tags with "tag:" or any other prefix
+</atlas_tag_namespace_rules>
+
+`;
+
+/**
  * Builds a prompt for tag analysis based on the specified mode
  * @param content - Content to analyze
  * @param candidateTags - Array of candidate tags
@@ -168,7 +197,7 @@ Do NOT include explanations, just the comma-separated tag list.
             break;
 
         case TaggingMode.Hybrid:
-            prompt += `${langInstructions}${excludedTagsBlock}<task>
+            prompt += `${langInstructions}${excludedTagsBlock}${ATLAS_NAMESPACE_RULES}<task>
 Analyze the document content and provide relevant tags using a two-part approach:
 1. Select existing tags from the available tag list that match the content (up to ${Math.ceil(maxTags/2)} tags)
 2. Generate new tags for concepts not covered by existing tags (up to ${Math.ceil(maxTags/2)} tags)
@@ -183,11 +212,11 @@ ${content}
 </document_content>
 
 <tag_requirements>
-- Use kebab-case formatting (lowercase with hyphens): "machine-learning" not "Machine Learning"
-- Keep tags concise (1-3 words maximum)
-- Be specific and descriptive
+- Every tag MUST have a namespace prefix (resources/, type/, status/, or keyword/)
 - Match existing tags exactly when selecting from available tags
-- Generate new tags only for important concepts not covered by existing tags
+- Generate new tags with the appropriate namespace prefix
+- Keep tags concise (1-3 words after the namespace prefix)
+- Be specific and descriptive
 - Do NOT include the # symbol
 - Do NOT prefix tags with field names or "tag:"
 </tag_requirements>
@@ -214,7 +243,7 @@ Example of WRONG output (DO NOT DO THIS):
             break;
 
         case TaggingMode.GenerateNew:
-            prompt += `${langInstructions}${excludedTagsBlock}<task>
+            prompt += `${langInstructions}${excludedTagsBlock}${ATLAS_NAMESPACE_RULES}<task>
 Analyze the document content and generate up to ${maxTags} relevant tags that best describe the key topics, themes, and concepts.
 </task>
 
@@ -223,8 +252,10 @@ ${content}
 </document_content>
 
 <tag_requirements>
-- Use kebab-case formatting (lowercase with hyphens): "machine-learning" not "Machine Learning" or "machine_learning"
-- Keep tags concise (1-3 words maximum)
+- Every tag MUST have a namespace prefix (resources/, type/, status/, or keyword/)
+- Use kebab-case for English tag values (lowercase with hyphens): "machine-learning" not "machine_learning"
+- Chinese concepts keep Chinese characters (e.g. keyword/回测, keyword/网格交易)
+- Keep tags concise (1-3 words after the namespace prefix)
 - Be specific and descriptive
 - Focus on main topics, key concepts, and important themes
 - Avoid overly generic tags unless highly relevant
@@ -252,7 +283,7 @@ Do NOT include explanations or additional text, just the comma-separated tag lis
                 throw new Error(`Custom prompt validation failed: ${validationError}`);
             }
 
-            prompt += `${langInstructions}${excludedTagsBlock}<task>
+            prompt += `${langInstructions}${excludedTagsBlock}${ATLAS_NAMESPACE_RULES}<task>
 Analyze the document content and generate up to ${maxTags} relevant tags based on the custom instructions provided below.
 </task>
 
@@ -269,8 +300,10 @@ ${activeSettings.customPrompt}
 </custom_instructions>
 
 <tag_requirements>
-- Use kebab-case formatting (lowercase with hyphens)
-- Keep tags concise (1-3 words maximum)
+- Every tag MUST have a namespace prefix (resources/, type/, status/, or keyword/)
+- Use kebab-case for English tag values (lowercase with hyphens)
+- Chinese concepts keep Chinese characters
+- Keep tags concise (1-3 words after the namespace prefix)
 - Follow the custom instructions above
 - Do NOT include the # symbol
 - Do NOT prefix tags with "tag:" or any other prefix
