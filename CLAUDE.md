@@ -29,14 +29,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Development build with watch mode and inline sourcemaps
 npm run dev
 
-# Production build (type-checks, then bundles)
+# Production build (auto-bumps version, type-checks, then bundles)
 npm run build
 
-# Version bump (updates manifest.json and versions.json)
+# Manual version bump (updates manifest.json and versions.json)
 npm run version
 ```
 
-The build process uses esbuild to bundle `src/main.ts` into `main.js`. Production builds disable sourcemaps; dev builds enable inline sourcemaps.
+**Version auto-bump**: `npm run build` runs `node version-bump.mjs` as the first step, generating version from current timestamp (`YYYYMMDD.HHmmss` format). The build then proceeds with type-checking and bundling via esbuild. Production builds disable sourcemaps; dev builds enable inline sourcemaps.
 
 ## Architecture Overview
 
@@ -72,6 +72,11 @@ Four distinct modes in `TaggingMode` enum:
 - **Hybrid**: Combines both (generates new + matches existing)
 - **Custom**: User-defined prompt with custom instructions
 
+**Atlas namespace convention** (Hybrid / GenerateNew / Custom modes):
+All three modes inject `<atlas_tag_namespace_rules>` into the prompt, enforcing the `resources/type/status/keyword` prefix system. A post-filter in `main.ts` (`applyAtlasNamespaceFilter`) strips bare-word tags and caps per-namespace counts:
+- `resources/` ≤ 2, `type/` = 1, `status/` = 1, `keyword/` ≤ 5
+- Total ≤ 9 tags
+
 Mode selection affects prompt structure and tag merging logic in `analyzeAndTagNote()`.
 
 ### Settings & Configuration
@@ -105,7 +110,10 @@ Mode selection affects prompt structure and tag merging logic in `analyzeAndTagN
 - `TagUtils.formatTags()`: Sanitizes tags (removes prefixes, enforces kebab-case)
 - `TagUtils.updateNoteTags()`: Modifies frontmatter YAML, handles merge vs replace
 - `TagUtils.getAllTags()`: Extracts all tags from vault frontmatter
-- `TagUtils.getTagsFromFile()`: Reads predefined tags from markdown file
+- `TagUtils.getTagsFromFile()`: Reads predefined tags from markdown file. Supports three formats:
+  - **Markdown table rows**: `| keywords | resources/ai |` → extracts last column as tag. Used for Atlas `tag-rules.md`.
+  - **Markdown list items**: `- tag-name`
+  - **Bare-word lines**: `tag-name`
 
 **Tag formatting rules**:
 - Remove `#` prefix and malformed prefixes (`tag:`, `matchedExistingTags-`, etc.)
@@ -159,6 +167,7 @@ Always sanitize LLM outputs:
 2. Apply `formatTags()` to strip malformed prefixes
 3. Normalize to kebab-case
 4. Remove duplicates and empty strings
+5. **Atlas namespace filter** (`applyAtlasNamespaceFilter` in `main.ts`): drops bare-word tags, caps per-namespace counts (resources≤2, type=1, status=1, keyword≤5, total≤9)
 
 ### Frontmatter Handling
 
@@ -216,15 +225,21 @@ plugin.addCommand({
 - **New LLM providers**: `src/services/adapters/` and update `cloudService.ts`
 - **Tag processing logic**: `src/utils/tagUtils.ts`
 - **Translations**: `src/i18n/en.ts` and `src/i18n/zh-cn.ts`
+- **Atlas namespace rules**: `src/services/prompts/tagPrompts.ts` (ATLAS_NAMESPACE_RULES constant) and `src/main.ts` (`applyAtlasNamespaceFilter`)
+- **Atlas tag-rules.md parsing**: `src/utils/tagUtils.ts` (`getTagsFromFile`)
+- **Version auto-bump**: `version-bump.mjs
 
 ## Version Management
 
-Version is stored in three places (must stay in sync):
-- `package.json` → `version`
+Version is stored in three places:
 - `manifest.json` → `version`
 - `versions.json` → add new entry
 
-Use `npm run version` to bump all three automatically via `version-bump.mjs`.
+**Auto-bump on build**: `npm run build` runs `version-bump.mjs` first, generating a timestamp-based version (`YYYYMMDD.HHmmss`) and updating `manifest.json` + `versions.json`.
+
+**Manual bump**: Use `npm run version` to run `version-bump.mjs` standalone without building.
+
+**Source of truth**: `manifest.json` is the canonical version — `versions.json` derives from it. `package.json` version is static (`1.0.18`); the actual build version comes from manifest.
 
 ## Releasing a New Version
 
@@ -256,3 +271,41 @@ gh release upload 1.0.16 main.js manifest.json styles.css
 - D3.js loaded dynamically from CDN (no bundling) for network visualization
 - Settings changes (especially service type/language) may require Obsidian restart
 - Tag formatting preserves `/` for nested tags but converts other special chars to hyphens
+
+## Atlas Integration
+
+This fork adds support for the **Atlas knowledge base** (Obsidian vault with Karpathy LLM Wiki paradigm). The Atlas tag system uses a four-namespace convention:
+
+| Namespace | Count | Example |
+|-----------|-------|---------|
+| `resources/` | 1-2 | `resources/ai`, `resources/quant` |
+| `type/` | 1 | `type/article`, `type/tutorial` |
+| `status/` | 1 | `status/unread`, `status/organized` |
+| `keyword/` | 0-5 | `keyword/machineLearning`, `keyword/回测` |
+
+Total ≤ 9 tags.
+
+### Integration points
+
+1. **tag-rules.md parsing** (`tagUtils.ts:getTagsFromFile`): Reads Atlas-style markdown tables (`| keyword | tag |`) — used when `settings.tagSourceType === "file"` and `settings.predefinedTagsPath === "tag-rules.md"`.
+
+2. **Namespace prompt injection** (`tagPrompts.ts`): The `ATLAS_NAMESPACE_RULES` constant is injected into Hybrid, GenerateNew, and Custom mode prompts. The LLM is instructed to always emit namespaced tags.
+
+3. **Post-filter** (`main.ts:applyAtlasNamespaceFilter`): All generated tags are validated after LLM response. Bare-word tags (no `resources/type/status/keyword` prefix) are dropped. Per-namespace counts are capped.
+
+### Recommended Settings (for Atlas vault)
+
+```json
+{
+  "tagSourceType": "file",
+  "predefinedTagsPath": "tag-rules.md",
+  "replaceTags": true,
+  "excludedFolders": ["raw/", "wiki/"],
+  "enableNestedTags": false,
+  "tagFormat": "original"
+}
+```
+
+### Versioning
+
+This fork auto-bumps version on every `npm run build` using `version-bump.mjs`. Version format: `YYYYMMDD.HHmmss` (e.g., `20260522.181615`).
